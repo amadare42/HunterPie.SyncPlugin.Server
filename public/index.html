@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monster data</title>
+</head>
+<body>
+
+<input id="sessionInput" onchange="sessionId = this.value" />
+<button onclick="setSessionId(document.getElementById('sessionInput').value)">OK</button>
+<pre id="data" />
+
+<script>
+    let sessionId = localStorage.getItem('sessionId') || "";
+    let pollId = uuidv4();
+
+
+    async function poll() {
+        console.log(sessionId);
+        try {
+            if (!sessionId) {
+                document.getElementById('data').innerText = `Specify session id`;
+                setTimeout(poll, 500);
+                return;
+            }
+            let rqSessionId = sessionId;
+            let rsp = await fetch(`/game/${encodeURIComponent(sessionId)}/poll/web-client-${pollId}`);
+            if (sessionId != rqSessionId) {
+                return;
+            }
+            let txt = await rsp.text();
+            let data = JSON.parse(txt);
+            document.getElementById('data').innerText = JSON.stringify(data, null, 2);
+        } catch (e) {
+            document.getElementById('data').innerText = `Error during polling:\n${e}`;
+            setTimeout(poll, 500);
+            return;
+        }
+        setTimeout(poll, 30);
+    }
+
+    function uuidv4() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    function setSessionId(sessionId) {
+        localStorage.setItem('sessionId', sessionId);
+        pollId = uuidv4();
+        poll();
+    }
+
+    document.getElementById('sessionInput').value = sessionId;
+    poll();
+</script>
+
+</body>
+</html>
