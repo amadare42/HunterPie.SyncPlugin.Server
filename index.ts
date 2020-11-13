@@ -50,7 +50,7 @@ function clearOldSessions() {
             deletedSessions++;
         }
     }
-    console.log(`cleared ${deletedSessions} sessions..`);
+    console.log(`cleared ${deletedSessions} sessions (${games.size} still active).`);
     setTimeout(clearOldSessions, delays.sessionCheckInterval);
 }
 
