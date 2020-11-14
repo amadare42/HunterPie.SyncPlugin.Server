@@ -2,17 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Monster data</title>
+    <title>Monster data monitor</title>
+    <title>Monster data monitor</title>
 </head>
 <body>
 
-<input id="sessionInput" onchange="sessionId = this.value" />
-<button onclick="setSessionId(document.getElementById('sessionInput').value)">OK</button>
+<form onsubmit="setSessionId(document.getElementById('sessionInput').value); return false;">
+    <input id="sessionInput" onchange="sessionId = this.value" />
+    <input type="submit" />
+</form>
 <pre id="data" />
 
 <script>
     let sessionId = localStorage.getItem('sessionId') || "";
     let pollId = uuidv4();
+    let pollIteration = 0;
 
 
     async function poll() {
@@ -25,6 +29,10 @@
             }
             let rqSessionId = sessionId;
             let rsp = await fetch(`/game/${encodeURIComponent(sessionId)}/poll/web-client-${pollId}`);
+            if (++pollIteration > 500) {
+                document.getElementById('data').innerText = 'too many iterations, poll stopped';
+                return;
+            }
             if (sessionId != rqSessionId) {
                 return;
             }
@@ -49,6 +57,7 @@
     function setSessionId(sessionId) {
         localStorage.setItem('sessionId', sessionId);
         pollId = uuidv4();
+        pollIteration = 0;
         poll();
     }
 

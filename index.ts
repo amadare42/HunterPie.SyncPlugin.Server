@@ -66,6 +66,14 @@ function timeoutPolls() {
     setTimeout(timeoutPolls, delays.pollCheckInterval);
 }
 
+function getActivePollsCount() {
+    let count = 0;
+    for (let [_, polls] of sessionsToPolls) {
+        count += polls.length;
+    }
+    return count;
+}
+
 // session id - game
 var games = new Map<string, Model>();
 
@@ -138,25 +146,42 @@ app.put('/game/:sessionId', (rq, rs) => {
         games.set(sessionId, model);
     }
 
-    var polls = sessionsToPolls.get(sessionId);
-    polls?.forEach(p => p.cb(monsters));
+    // respond to polls before responding to this request to avoid overwhelming server
+    const polls = sessionsToPolls.get(sessionId);
+    if (polls) {
+        for (let poll of polls) {
+            try {
+                poll.cb(monsters);
+            } catch (e) {
+                console.error(`Error on responding to poll for session ${sessionId}`)
+            }
+        }
+        sessionsToPolls.set(sessionId, []);
+    }
     rs.status(200).json();
 });
 
 
+app.get('/', (rq, rs) => {
+    rs.status(200).send(`Sever is OK!
+<br\>Active sessions: ${games.size}
+<br\>Active polls: ${getActivePollsCount()}
+<br\>Data pushed total: ${formatBytes(totalPush)}
+<br\>Uptime: ${process.uptime().toFixed(2)} sec
+`);
+});
+
 // debugging
-app.post('/save', (rq, rs) => {
-    fs.writeFileSync('state.json', JSON.stringify([...games], null, 2));
-    rs.status(200).json('ok');
-});
-
-app.post('/load', (rq, rs) => {
-    games = new Map(JSON.parse(fs.readFileSync('state.json').toString()));
-    console.log('read from state.json');
-    rs.status(200).json('ok');
-});
-
-app.get('/ping', (rq, rs) => rs.status(200).json("pong"));
+// app.post('/save', (rq, rs) => {
+//     fs.writeFileSync('state.json', JSON.stringify([...games], null, 2));
+//     rs.status(200).json('ok');
+// });
+//
+// app.post('/load', (rq, rs) => {
+//     games = new Map(JSON.parse(fs.readFileSync('state.json').toString()));
+//     console.log('read from state.json');
+//     rs.status(200).json('ok');
+// });
 
 setTimeout(clearOldSessions, delays.sessionCheckInterval);
 setTimeout(timeoutPolls, delays.pollCheckInterval);
