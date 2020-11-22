@@ -101,7 +101,7 @@ app.get('/game/:sessionId/poll/:pollId', (rq, rs) => {
 
     if (!pollInited.has(pollId)) {
         let session = games.get(sessionId);
-        rs.status(200).json((session && session.Monsters) ?? []);
+        rs.status(200).json((session && session.Monsters) || []);
         pollInited.add(pollId);
         return;
     }
