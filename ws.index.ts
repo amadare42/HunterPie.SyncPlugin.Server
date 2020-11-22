@@ -37,7 +37,7 @@ function removeSocket(this: WebSocket) {
     else {
         allSockets.delete(socket);
     }
-    console.log(`connection closed. session: ${info?.sessionId}`);
+    console.log(`connection closed. session: ${info && info.sessionId}`);
 }
 
 function removeSocketFromSession(sessionId: string, socket: WebSocket) {
@@ -54,7 +54,11 @@ function removeSocketFromSession(sessionId: string, socket: WebSocket) {
 }
 
 function notifyOnSessionUpdate(clients: WebSocket[]) {
-    let leaderConnected = clients.some(s => allSockets.get(s)?.isLeader ?? false);
+    let leaderConnected = clients.some(s => {
+        var info = allSockets.get(s);
+        if (!info) return false;
+        return info.isLeader;
+    });
     for (let s of clients) {
         s.send(createMsg({
             type: 'sessionstate',

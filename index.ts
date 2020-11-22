@@ -47,7 +47,7 @@ function clearOldSessions() {
         if (now - model.lastUpdate > delays.sessionTimeout) {
             games.delete(sessionId);
             let polls = sessionsToPolls.get(sessionId);
-            polls?.forEach(p => pollInited.delete(p.pollId));
+            polls && polls.forEach(p => pollInited.delete(p.pollId));
             sessionsToPolls.delete(sessionId);
             deletedSessions++;
         }
@@ -101,7 +101,7 @@ app.get('/game/:sessionId/poll/:pollId', (rq, rs) => {
 
     if (!pollInited.has(pollId)) {
         let session = games.get(sessionId);
-        rs.status(200).json(session?.Monsters ?? []);
+        rs.status(200).json((session && session.Monsters) ?? []);
         pollInited.add(pollId);
         return;
     }
@@ -130,7 +130,7 @@ app.get('/game/:sessionId', (rq, rs) => {
     const id = rq.params['sessionId'];
     console.log(`pull game ${id}`)
     const model = games.get(id);
-    rs.status(200).json(model?.Monsters ?? null);
+    rs.status(200).json((model && model.Monsters) || null);
 });
 
 // PUT PushChangedMonsters(sessionId, Monster[]) -> ""
