@@ -1,4 +1,6 @@
 import * as express from 'express';
+import * as http from "http";
+import { registerWebsockets } from './ws.index';
 const fs = require('fs');
 var cors = require('cors')
 
@@ -84,6 +86,7 @@ var sessionsToPolls = new Map<string, Poll[]>();
 var pollInited = new Set<string>();
 
 const app = express();
+const server = http.createServer(app);
 app.use(express.json())
 app.use(cors());
 app.use(express.static('public'));
@@ -185,4 +188,5 @@ app.get('/', (rq, rs) => {
 
 setTimeout(clearOldSessions, delays.sessionCheckInterval);
 setTimeout(timeoutPolls, delays.pollCheckInterval);
-app.listen(process.env.PORT || 5001, () => console.log('started!'));
+registerWebsockets(app, server, '/dev');
+server.listen(process.env.PORT || 5001, () => console.log('started!'));
