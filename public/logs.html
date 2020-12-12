@@ -1208,6 +1208,12 @@
                     }
                 };
 
+                setInterval(() => {
+                    if (socket.readyState === 1) {
+                        socket.send("ping");
+                    }
+                }, 3000);
+
                 socket.onclose = (evt) => {
                     if (evt.code === 1000) {
                         this.addSystemMsg("Connection closed. Refresh to continue.");

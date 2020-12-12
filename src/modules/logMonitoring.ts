@@ -24,6 +24,9 @@ export function registerLogger(app: express.Application, server: http.Server, pr
         let room = url.parse(rq.url, true).query.room || '';
         sockets.add(ws);
         socketsToRooms.set(ws, room ? room + '' : '');
+        ws.on("message", () => {
+            return;
+        });
     });
     wss.on("close", ws => {
         sockets.delete(ws);
