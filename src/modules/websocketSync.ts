@@ -137,7 +137,7 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
             // send this package to all except self & leaders
             let promises = socks
                 .filter(s => !allSockets.get(s).isLeader && s != currentSocket)
-                .map(s => new Promise((rs, rj) => s.send(data, { compress: true }, err => err ? rj(err) : rs())));
+                .map(s => new Promise((rs, rj) => s.send(data, { compress: true }, err => err ? rj(err) : rs(null))));
             await Promise.all(promises);
             logger.trace(JSON.stringify(msg));
             logger.info(`Data pushed. Notified ${promises.length} clients`);
