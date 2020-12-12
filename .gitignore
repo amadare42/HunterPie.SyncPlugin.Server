@@ -1,4 +1,5 @@
 node_modules
-state.json
 npm
 .idea
+/public/update/
+.env

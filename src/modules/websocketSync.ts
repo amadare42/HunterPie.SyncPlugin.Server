@@ -1,9 +1,12 @@
 import * as express from 'express';
 import * as http from 'http';
 import * as WebSocket from 'ws';
-import { Msg } from './messageModel';
-import { allSockets, sessionToSockets } from './state';
-import { formatBytes, getSize, readEnvVar } from './util';
+import { Msg } from '../messageModel';
+import { allSockets, sessionToSockets } from '../state';
+import { formatBytes, generateUid, getSize, readEnvVar } from '../util';
+import { registerWs } from '../util/registerWs';
+import { logger } from '../util/logging';
+const url = require('url');
 
 const SOCKET_TIMEOUT = readEnvVar('SOCKET_TIMEOUT', 1000 * 60 * 5);
 const SOCKET_TIMEOUT_CHECK_INTERVAL = readEnvVar('SOCKET_TIMEOUT_CHECK_INTERVAL', 1000 * 80);
@@ -13,34 +16,44 @@ const UNSUPPORTED_MSG = Symbol();
 const createMsg = (data: Msg) => JSON.stringify(data);
 
 function onPing(this: WebSocket) {
+    const now = Date.now();
+    if (logger.isTraceEnabled()) {
+        const info = allSockets.get(this);
+        logger.trace(`${ info?.name } ping. (last ping ${ now - info?.lastPing })`);
+    }
     let data = allSockets.get(this);
-    data.lastPing = Date.now();
+    data.lastPing = now;
     allSockets.set(this, data);
 }
 
 function parseData(data: WebSocket.Data) {
     if (typeof data != 'string') {
-        console.log('uknown data type');
+        logger.info('uknown data type');
         return UNSUPPORTED_MSG;
     }
-    var msg = JSON.parse(data) as Msg;
-    (msg as any).type = msg.type.toLowerCase();
-    return msg;
+    try {
+        var msg = JSON.parse(data) as Msg;
+        (msg as any).type = msg.type.toLowerCase();
+        return msg;
+    } catch (e){
+        console.log(e);
+        throw e;
+    }
 }
 
-function removeSocket(this: WebSocket) {
+function onClose(this: WebSocket) {
     let socket = this;
     let info = allSockets.get(socket);
     if (info && info.sessionId) {
         removeSocketFromSession(info.sessionId, socket);
     }
-    else {
-        allSockets.delete(socket);
-    }
-    console.log(`connection closed. session: ${info && info.sessionId}`);
+    allSockets.delete(socket);
+    logger.info(`connection closed. session: ${info && info.sessionId} (${ allSockets.size } total) [${info?.name}]`);
 }
 
 function removeSocketFromSession(sessionId: string, socket: WebSocket) {
+    let info = allSockets.get(socket);
+    logger.debug(`removeSocketFromSession sessionId: ${sessionId}, ${JSON.stringify(info, null, 2)}`);
     if (!sessionId) return;
     let arr = sessionToSockets.get(sessionId);
     if (!arr) return;
@@ -54,13 +67,15 @@ function removeSocketFromSession(sessionId: string, socket: WebSocket) {
 }
 
 function notifyOnSessionUpdate(clients: WebSocket[]) {
+    logger.debug(`notifyOnSessionUpdate ids: ${clients.map(c => allSockets.get(c)?.sessionId)}`);
+
     let leaderConnected = clients.some(s => {
         var info = allSockets.get(s);
         if (!info) return false;
         return info.isLeader;
     });
     for (let s of clients) {
-        s.send(createMsg({
+        send(s, createMsg({
             type: 'sessionstate',
             leaderConnected,
             playersCount: clients.length
@@ -79,6 +94,14 @@ function addSocketToSession(sessionId: string, socket: WebSocket) {
     notifyOnSessionUpdate(arr);
 }
 
+function send(ws: WebSocket, data: string) {
+    ws.send(data);
+    let info = allSockets.get(ws);
+    if (logger.isDebugEnabled()) {
+        logger.debug(`sent [${info.name} ${info.sessionId} ${info.isLeader ? 'L' : 'P'}]`, data);
+    }
+}
+
 async function onMsg(this: WebSocket, data: WebSocket.Data) {
     let currentSocket = this;
 
@@ -90,12 +113,13 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
     }
 
     if (data == 'ping') {
+        currentSocket.send('pong');
         return;
     }
 
     const msg = parseData(data);
     if (msg == UNSUPPORTED_MSG) {
-        currentSocket.send(createMsg({
+        send(currentSocket, createMsg({
             type: 'servermsg',
             level: 'warn',
             text: `uknown message`
@@ -103,10 +127,11 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
         return;
     }
 
-    console.log(`received: ${msg.type} ${formatBytes(dataSize)} / ${formatBytes(socketInfo.bytesPushedTotal)} total`);
+    logger.info(`received: ${msg.type} ${formatBytes(dataSize)} / ${socketInfo && formatBytes(socketInfo.bytesPushedTotal) || 0} total [${socketInfo.name}]`);
 
     switch (msg.type) {
         case 'push': {
+            logger.info(msg.type, msg.sessionId, socketInfo.name);
             let socks = sessionToSockets.get(msg.sessionId);
             if (!socks) return;
             // send this package to all except self & leaders
@@ -114,14 +139,17 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
                 .filter(s => !allSockets.get(s).isLeader && s != currentSocket)
                 .map(s => new Promise((rs, rj) => s.send(data, { compress: true }, err => err ? rj(err) : rs())));
             await Promise.all(promises);
-            console.log(`Data pushed. Notified ${promises.length} clients`);
+            logger.trace(JSON.stringify(msg));
+            logger.info(`Data pushed. Notified ${promises.length} clients`);
             break;
         }
 
         case 'setsession': {
+            logger.info(data);
+
             let info = allSockets.get(currentSocket);
             if (!msg.sessionId) {
-                currentSocket.send(createMsg({
+                send(currentSocket, createMsg({
                     type: 'servermsg',
                     level: 'warn',
                     text: 'Session id cannot be empty!'
@@ -129,29 +157,10 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
                 return;
             }
 
-            // check if sockets already attached to some session
-            if (info) {
-                if (info.sessionId == msg.sessionId) {
-                    if (info.isLeader != msg.isLeader) {
-                        // notify if became leader
-                        info.isLeader = msg.isLeader;
-                        let arr = sessionToSockets.get(msg.sessionId);
-                        arr && notifyOnSessionUpdate(arr);
-                    }
-                    // skip if in same session
-                    return;
-                } else {
-                    // remove from existing session
-                    removeSocketFromSession(info.sessionId, currentSocket);
-                }
-            } else {
-                info = {
-                    sessionId: msg.sessionId,
-                    lastPing: Date.now(),
-                    isLeader: msg.isLeader,
-                    bytesPushedTotal: getSize(data)
-                };
-                allSockets.set(currentSocket, info);
+            if (info.sessionId != msg.sessionId) {
+                logger.info(`removed from previos session (${info.sessionId} != ${msg.sessionId})`)
+                // remove from existing session
+                removeSocketFromSession(info.sessionId, currentSocket);
             }
 
             info.sessionId = msg.sessionId;
@@ -160,17 +169,23 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
             break;
         }
 
-        case 'close': {
+        case 'leavesession': {
             let info = allSockets.get(currentSocket);
-            allSockets.delete(currentSocket);
             if (info.sessionId) {
                 removeSocketFromSession(info.sessionId, currentSocket);
             }
             break;
         }
 
+        case 'setname':
+            if (socketInfo) {
+                logger.info(`${ socketInfo.name } -> ${ msg.name }`);
+                socketInfo.name = msg.name;
+            }
+            break;
+
         default:
-            currentSocket.send(createMsg({
+            send(currentSocket, createMsg({
                 type: 'servermsg',
                 level: 'warn',
                 text: `unexpected message type ${msg.type}!`
@@ -178,8 +193,7 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
             break;
     }
 
-    console.log(`Active sessions: ${sessionToSockets.size}, sockets: ${allSockets.size}`);
-
+    logger.info(`Active sessions: ${sessionToSockets.size}, sockets: ${allSockets.size}`);
 }
 
 function checkTimeoutSockets() {
@@ -190,7 +204,7 @@ function checkTimeoutSockets() {
     for (let [socket, info] of allSockets) {
         let elapsed = now - info.lastPing;
         if (elapsed > SOCKET_TIMEOUT) {
-            console.log(`socket timeout ${info.sessionId}: ${elapsed} ms`);
+            logger.info(`socket timeout ${info.sessionId}: ${elapsed} ms`);
             removeSocketFromSession(info.sessionId, socket);
             // yes, it's ok to remove entries while iterating
             allSockets.delete(socket);
@@ -200,27 +214,34 @@ function checkTimeoutSockets() {
     }
 
     let sessionCount2 = sessionToSockets.size;
-    console.log(`Check timeout finished. Removed connections: ${removed} (${allSockets.size} still active), closed sessions: ${sessionCount - sessionCount2} (${sessionCount2} still active)`);
+    if (removed > 0) {
+        logger.info(`Check timeout finished. Removed connections: ${ removed } (${ allSockets.size } still active), closed sessions: ${ sessionCount - sessionCount2 } (${ sessionCount2 } still active)`);
+    }
 
     setTimeout(checkTimeoutSockets, SOCKET_TIMEOUT_CHECK_INTERVAL);
 }
 
-export function registerWebsockets(app: express.Application, server: http.Server, prefix: string) {
-    const wss = new WebSocket.Server({ server, path: prefix + '/connect', perMessageDeflate: {
-        threshold: 50,
-        clientNoContextTakeover: true,
-        serverNoContextTakeover: true
-    }});
-    wss.on('connection', ws => {
-        allSockets.set(ws, { sessionId: null, isLeader: null, lastPing: Date.now(), bytesPushedTotal: 0 });
+export function registerWsSync(app: express.Application, server: http.Server, prefix: string) {
+    const wss = new WebSocket.Server({ noServer: true,
+        perMessageDeflate: {
+            threshold: 50,
+            clientNoContextTakeover: true,
+            serverNoContextTakeover: true
+        }});
+    registerWs(server, wss, prefix + '/connect');
+    wss.on('connection', async (ws, rq) => {
+        var name = new URLSearchParams(url.parse(rq.url).search).get('playerName') || generateUid();
+        var info = { sessionId: null, isLeader: null, lastPing: Date.now(), bytesPushedTotal: 0, name };
+        allSockets.set(ws, info);
+        logger.info(`socket connected [${info.name}] (${allSockets.size} sockets total)`);
 
         ws.on('ping', onPing);
         ws.on('message', onMsg);
-        ws.on('close', removeSocket);
+        ws.on('close', onClose);
     });
 
     app.get(prefix + '/version', (rq, rs) => {
-        console.log("version check");
+        logger.info("version check");
         return rs.status(200).send('0.1');
     });
     app.get(prefix + '/', (rq, rs) => {
@@ -233,18 +254,5 @@ export function registerWebsockets(app: express.Application, server: http.Server
     });
 
     setTimeout(checkTimeoutSockets, SOCKET_TIMEOUT_CHECK_INTERVAL);
+    return wss;
 }
-
-// TODO: uncomment this when become standard
-// var cors = require('cors')
-//
-// const app = express();
-// const server = http.createServer(app);
-// register(app, server, '');
-// app.use(express.json())
-// app.use(cors());
-// app.use(express.static('public'));
-//
-// setTimeout(checkTimeoutSockets, SOCKET_TIMEOUT_CHECK_INTERVAL);
-// server.listen(process.env.PORT || 5001, () => console.log(`started ${server.address()['port']}!`));
-

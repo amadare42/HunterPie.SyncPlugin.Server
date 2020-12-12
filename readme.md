@@ -4,25 +4,9 @@
 Implementation for HunterPie's [SyncPlugin](https://github.com/amadare42/HunterPie.SyncPlugin).
 Currently deployed on: https://amadare-mhw-sync.herokuapp.com/
 
-## REST API
-
-Implements extremely simple protocol.
-
-`PUT /game/{sessionId}`
- 
- Lead player can push monster information to this endpoint. Expects array of monsters as body. Session will be timed out after 5 minutes without new updates.
-
-`GET /game/{sessionId}/poll/{pollId}`
-
-Peer players can poll monster information from this endpoint. For first call (new pollId), it will return available monster data right away. For each subsequent call it will either return monster data that is pushed by lead player or null if no updates were available before timeout.
-
-`GET /game/{sessionId}`
-
-Return all monsters in session.
-
 ## Websockets API
 
-For websockets there is simple flow that needs to be done. Note that `type` member isn't case-sensitive. Currently, it is available on https://amadare-mhw-sync.herokuapp.com/dev root.
+For websockets there is simple flow that needs to be done. Note that `type` member isn't case-sensitive. Currently, it is available on https://amadare-mhw-sync.herokuapp.com/ root.
 
 Here is list of all possible messages in vague order:
 
@@ -70,5 +54,22 @@ Here is list of all possible messages in vague order:
 }
 ```
 
-## Message compression
+### Message compression
 It is expected for clients to use `deflate-message` compression algorithm, but without context takeover since at the time of writing, client doesn't support it.
+
+## Logging
+Under `/logs.html` endpoint tool to monitor logs is available. It will display server logs at realtime.
+It will also display logs that are sent to `/logs/add` endpoint. Expected format:
+```js
+{
+    timestamp: number, // unix timestamp in milliseconds
+    level: string, // log level: debug, trace, info, warn, error
+    msg: string, // message text
+    text: string, // redundant full entry representation (with time and level)
+    user: string, // user name
+    room: string
+}
+```
+Array of objects of this type is also supported.
+
+These logs will be sent to `/logs/listen?roomId=<roomId>` endpoint. They are not stored anywhere. So for further analysis it will be useful to dump them into DB. `cheapass-logs-dumper` will do exactly that: connects to specified server and listen for all received logs to DB.

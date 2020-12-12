@@ -10,8 +10,8 @@ export type SetSessionMsg = {
     isLeader: boolean
 }
 
-export type CloseMsg = {
-    type: 'close'
+export type LeaveMsg = {
+    type: 'leavesession'
 }
 
 export type ServerMsg = {
@@ -26,5 +26,10 @@ export type SessionStateMsg = {
     leaderConnected: boolean
 }
 
-export type Msg = PushMsg | SetSessionMsg | CloseMsg | ServerMsg | SessionStateMsg;
+export type SetNameMessage = {
+    type: 'setname',
+    name: string
+}
+
+export type Msg = PushMsg | SetSessionMsg | LeaveMsg | ServerMsg | SessionStateMsg | SetNameMessage;
 

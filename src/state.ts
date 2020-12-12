@@ -4,7 +4,8 @@ export type SocketInfo = {
     sessionId: string,
     isLeader: boolean | null,
     lastPing: number,
-    bytesPushedTotal: number
+    bytesPushedTotal: number,
+    name: string
 }
 
 export const sessionToSockets = new Map<string, WebSocket[]>();

@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Log Monitor</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+
+    <script src="https://unpkg.com/vue-simple-context-menu/dist/vue-simple-context-menu.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/vue-simple-context-menu/dist/vue-simple-context-menu.css">
+
+    <script src="libs/vue-virtual-scroller/vue-virtual-scroller.min.js"></script>
+    <link rel="stylesheet" href="libs/vue-virtual-scroller/vue-virtual-scroller.css"/>
+    <script src="https://unpkg.com/http-vue-loader"></script>
+
+    <style type="text/css">
+        ::-webkit-scrollbar {
+            width: 7px;
+            height: 7px;
+        }
+        ::-webkit-scrollbar-button {
+            width: 0px;
+            height: 0px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e1e1e1;
+            border: 17px none #ffffff;
+            border-radius: 50px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ffffff;
+        }
+        ::-webkit-scrollbar-thumb:active {
+            background: #000000;
+        }
+        ::-webkit-scrollbar-track {
+            background: #666666;
+            border: 0px none #ffffff;
+            border-radius: 50px;
+        }
+        ::-webkit-scrollbar-track:hover {
+            background: #666666;
+        }
+        ::-webkit-scrollbar-track:active {
+            background: #333333;
+        }
+        ::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+    </style>
+    <style>
+        :root {
+            --background-color: #263238;
+            --background-highlight-color: #ffffff11;
+        }
+
+        body {
+            margin: 0;
+            color: #B0ABB7;
+            background: var(--background-color);
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        #panel {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 -5px 20px black;
+            padding-right: 20px;
+        }
+        button {
+            background: var(--background-color);
+            border: none;
+            padding: 8px;
+            color: #B0ABB7;
+        }
+        button:hover {
+            background: #394448;
+        }
+        button:focus {
+            outline: none;
+        }
+        input {
+            background: var(--background-color);
+            color: #B0ABB7;
+            border: none;
+            border-bottom: 1px solid #B0ABB7;
+            padding: 5px;
+            outline: transparent;
+        }
+        input:hover {
+            background: #394448;
+        }
+
+        #container {
+            transition: padding-left;
+            transition-duration: 150ms;
+
+            height: calc(100vh - 50px);
+            overflow-y: auto;
+            margin: 0 0 0 10px;
+        }
+        #panel label {
+            margin-left: 20px;
+            white-space: nowrap;
+        }
+        #container div {
+            display: block;
+            font-family: monospace;
+            /*padding-bottom: 5px;*/
+
+            transition: opacity;
+            transition-duration: 100ms;
+        }
+        #container div span:nth-child(1) {
+            opacity: 0.3;
+            user-select: none;
+        }
+        .entry {
+            padding-top: 4px;
+            padding-bottom: 4px;
+            white-space: pre-wrap;
+        }
+
+        .entry.hidden {
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }
+
+        .entry.hidden * {
+              max-height: 0 !important;
+              visibility: collapse;
+              height: 0;
+              padding-top: 0 !important;
+              padding-bottom: 0 !important;
+          }
+        #container .entry.selected {
+            background: var(--background-highlight-color);
+        }
+        #container .entry.selected span:nth-child(1) {
+            opacity: 0.6;
+            transform: scale(1.25);
+            display: inline-block;
+            user-select: none;
+        }
+        #container .entry:hover span {
+            opacity: 1 !important;
+        }
+
+        .actor0 {
+            color: #BDCDE0
+        }
+        #container.hid0 .actor0 {
+            opacity: 0.3;
+        }
+
+        .actor1 {
+            color: #BE95B8
+        }
+        #container.hid1 .actor1 {
+            opacity: 0.3;
+        }
+
+        .actor2 {
+            color: #90B776
+        }
+        #container.hid2 .actor2 {
+            opacity: 0.3;
+        }
+
+        .actor3 {
+            color: #96A3B6
+        }
+        #container.hid3 .actor3 {
+            opacity: 0.3;
+        }
+
+        #actors {
+            display: flex;
+            width: 100%;
+            height: 40px;
+            justify-content: space-around;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        #saveContainer {
+            position: fixed;
+            right: 10px;
+            bottom: 10px;
+            opacity: 0.3;
+            padding: 5px;
+        }
+        #saveContainer img {
+            width: 30px;
+            height: 30px;
+        }
+        #saveContainer:hover {
+            opacity: 1;
+        }
+        #actors button {
+            border-bottom: 0 solid #B0ABB7;
+            font-family: monospace;
+            transition: border-bottom-width 100ms;
+        }
+        #actors button.active {
+            font-weight: bold;
+            border-bottom: 4px solid #B0ABB7;
+        }
+        #level-popup {
+            position: fixed;
+            right: 10px;
+            top: 45px;
+            width: 250px;
+            background: var(--background-color);
+            box-shadow: 0 -5px 20px black;
+            z-index: 999;
+        }
+
+        #level-popup button {
+            width: 100%;
+            padding: 15px;
+        }
+
+        .hidden {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #overlay {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: black;
+            opacity: 0.3;
+            z-index: 6;
+        }
+
+        .hint {
+            opacity: 0.3;
+            user-select: none;
+        }
+
+        #status-bar {
+            position: fixed;
+            right: 30px;
+            top: 60px;
+            background: var(--background-color);
+            opacity: 0.7;
+            font-family: monospace;
+            user-select: none;
+            text-align: end;
+        }
+        #status-bar:hover {
+            opacity: 1;
+        }
+
+        #sidepanel-container {
+            position: fixed;
+            transition: all;
+            transition-duration: 150ms;
+            height: calc(100vh - 90px);
+            overflow-y: auto;
+            animation: all;
+            z-index: 2;
+            background: var(--background-color);
+            box-shadow: -7px 18px 20px black;
+            padding: 30px 10px 30px 10px;
+            left: -380px;
+            width: 300px;
+        }
+
+        .filterconfig-container {
+            margin: 10px;
+        }
+
+        .filterconfig-container:hover {
+            background: var(--background-highlight-color);
+        }
+
+        .foundbit {
+            background: linear-gradient(180deg, rgba(218,218,71,1) 0%, rgba(199,199,67,1) 100%);
+            color: black;
+            border-radius: 3px;
+            padding-bottom: 2px;
+            padding-top: 0px;
+        }
+        .foundbit.active {
+            background: linear-gradient(180deg, rgba(255,153,84,1) 0%, rgba(255,149,67,1) 100%);
+        }
+        #search-panel {
+            background: var(--background-color);
+            box-shadow: -7px 18px 20px black;
+            position: fixed;
+            right: 30px;
+            top: 50px;
+            min-height: 30px;
+            min-width: 300px;
+            z-index: 5;
+            display: flex;
+            padding: 5px 5px 5px 5px;
+            justify-content: space-between;
+            opacity: 0.6;
+        }
+        #search-panel.active {
+            opacity: 1;
+        }
+        #search-panel:hover {
+            opacity: 1;
+        }
+        #search-panel span {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .bookmark-item {
+            font-family: monospace;
+            margin: 7px 0 7px 0;
+            max-height: 300px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        .bookmark-item:hover {
+            background: var(--background-highlight-color);
+        }
+
+        .bookmark-button {
+            opacity: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+        #container .entry:hover .bookmark-button {
+            opacity: 0.3;
+        }
+        .bookmark-button.active {
+            opacity: 0.8;
+        }
+        .bookmark-button:hover {
+            opacity: 1 !important;
+        }
+        .flash {
+        }
+        .entry.flash {
+            animation: flash 1s ease-in-out;
+        }
+        @keyframes flash {
+            0% {
+                background: transparent;
+            }
+            50% {
+                background: #ffffff44;
+            }
+            100% {
+                background: transparent;
+            }
+        }
+    </style>
+
+    <link rel="icon" type="image/svg" href="favicon.svg"/>
+</head>
+<body>
+
+
+
+
+<div id="app">
+
+    <div id="panel">
+        <label style="margin-left: 0">
+            <button v-on:click="sidepanelOpen = !sidepanelOpen">
+                <svg id="Layer_1" enable-background="new 0 0 512 512" height="16" viewBox="0 0 512 512" width="16" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="currentColor" d="m464.883 64.267h-417.766c-25.98 0-47.117 21.136-47.117 47.149 0 25.98 21.137 47.117 47.117 47.117h417.766c25.98 0 47.117-21.137 47.117-47.117 0-26.013-21.137-47.149-47.117-47.149z"/>
+                    <path fill="currentColor" d="m464.883 208.867h-417.766c-25.98 0-47.117 21.136-47.117 47.149 0 25.98 21.137 47.117 47.117 47.117h417.766c25.98 0 47.117-21.137 47.117-47.117 0-26.013-21.137-47.149-47.117-47.149z"/>
+                    <path fill="currentColor" d="m464.883 353.467h-417.766c-25.98 0-47.117 21.137-47.117 47.149 0 25.98 21.137 47.117 47.117 47.117h417.766c25.98 0 47.117-21.137 47.117-47.117 0-26.012-21.137-47.149-47.117-47.149z"/>
+                </svg>
+            </button>
+        </label>
+        <button v-on:click="clearMessages">Clear</button>
+        <label>
+            <input type="checkbox" id="autoscrollCbx" v-bind:checked="autoScroll" @change="onScrollChanged($event.returnValue)" />Auto&nbsp;scroll
+        </label>
+        <actor-selector v-bind:actors="actors" @actor-toggle="updateEntries"></actor-selector>
+        <loglevel-selector @level-changed="onLevelChanged" v-bind:level="level" v-bind:levels="$levels" :messages="messages"></loglevel-selector>
+    </div>
+
+    <sidepanel-container :is-open="sidepanelOpen"
+                         :filters="filters"
+                         :bookmarks="bookmarks"
+                         :messages="messages"
+    ></sidepanel-container>
+    <log-container :entries="entries"
+                   :auto-scroll="autoScroll"
+                   :on-scroll-changed="onScrollChanged"
+                   :on-delete-messages="onDeleteMessages"
+                   :style="{ paddingLeft: sidepanelOpen ? '325px' : 0 }"
+                   :focused-part="focusedSearchResult"
+                   :bookmarks="bookmarks"
+    ></log-container>
+
+    <search-panel :search-query="searchQuery"
+                  :focused-search-result="focusedSearchResult"
+                  :found-parts="foundParts"
+                  :focus-prev-part="focusPrevPart"
+                  :focus-next-part="focusNextPart"
+    ></search-panel>
+
+    <div id="saveContainer">
+        <img alt="save" role="button" @click="saveMessages()" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAQnUlEQVR4Xu2cDYxU1RXH35tl9nsphmrT6BYsiBSplEJAaYyJCY0VbOVDScAvGrVtWlf50NpYrWlM25TQqrG1RVuWKlQkAho/sCJCKWIIhYVqxAqCVakisDC7w+7O7M5rxkhrKMvb3fPu3Hve+0liYnjnnv/9nbM/h50dfI9/IACBxBLwbd88CIKU7/sF2znoD4EkEvhYABsOtJ/z/W1tK8s8P19qCPlCkP7hiKrbrxtc+Xype9MPAqUmMGVTy7I9LZ3Dfa/0/+8NvOIvL3XXebW3XFWf3lC8+8cpntmfGzN5Y2ZrqWEc7/fAV2uubjinaqmt/vSFQKkIjHrhyNYdRzrHlKrfyfo0jq+dfP3gymf/K4A1H+ZGXbo+02QjVNFAi8ZWT7txSPVKG/3pCYFSErhw7dG/bj6Uv6iUPT/dK53yvMZxtRNnDapc64wAHhpbPe27CMDWTtC3hAQQwAmwi68AEEAJN5BWVgkgAARgdQFpbpcAAkAAdjeQ7lYJIAAEYHUBaW6XAAJAAHY3kO5WCSAABGB1AWlulwACQAB2N5DuVgkgAARgdQFpbpcAAkAAdjeQ7lYJIAAEYHUBaW6XAAJAAHY3kO5WCSAABGB1AWlulwACQAB2N5DuVgkgAARgdQFpbpdAdwLo53teZVnf/5KQlO95XYHnZTuDU16QjwPbnT/dE06gOwFM+nz5U/OHl89PFYKuviDqV1FZyOU70r/bnbt7+bu5a7o7AwH0hS41EIiIQHcCuO3cqp8s+ErNT6VtfvVm23Vzm7KNCEBKknoIGCDQnQBuGVrxs/vH1N0pbfmLXdnv3bGj7bcIQEqSeggYIIAA+CaggbXiSC0EEAAC0LKr5DRAAAEgAANrxZFaCCAABKBlV8lpgAACQAAG1oojtRBAAAhAy66S0wABBIAADKwVR2ohgAAQgJZdJacBAggAARhYK47UQgABIAAtu0pOAwQQAAIwsFYcqYUAAkAAWnaVnAYImBbAL9/I3nT7zrbfdxedjwMbGCpHQqCnBEx/HPjXu9q+PWdH9g8IoKcT4TkIlJBAdwKYUV/+6PIJ/a+VRrlpS+v9i/a2NyAAKUnqIWCAQHcCqC7zC0PrUq+X+X5XcOq/1ev/UgWeV1aW8vL5rqBib7YwrLUzSCMAA8PjSAhICfCXgvJNQOkOUa+YAAJAAIrXl+hSAggAAUh3iHrFBBAAAlC8vkSXEkAACEC6Q9QrJoAAEIDi9SW6lAACQADSHaJeMQEEgAAUry/RpQQQAAKQ7hD1igkgAASgeH2JLiWAABCAdIeoV0wAASAAxetLdCkBBIAApDtEvWICCAABKF5foksJIAAEIN0h6hUTQAAIQPH6El1KAAEgAOkOUa+YAAJAAIrXl+hSAggAAUh3iHrFBBAAAlC8vkSXEkAACEC6Q9QrJoAAEIDi9SW6lAACQADSHaJeMQEEgAAUry/RpQQQAAKQ7hD1igkgAASgeH2JLiWAABCAdIeoV0wAASAAxetLdCkBBIAApDtEvWICCAABKF5foksJIAAEIN0h6hUTQAAIQPH6El1KAAEgAOkOUa+YAAJAAIrXl+hSAggAAUh3iHrFBBAAAlC8vkSXEkAACEC6Q9QrJoAAEIDi9SW6lAACQADSHaJeMQEEgAAUry/RpQQQAAKQ7hD1igkgAASgeH2JLiWAABCAdIeoV0wAASAAxetLdCkBBIAApDtEvWICCAABKF5foksJIAAEIN0h6hUTQAAIQPH6El1KAAEgAOkOUa+YAAJAAIrXl+hSAggAAUh3iHrFBBAAAlC8vkSXEkAACEC6Q9QrJoAAEIDi9SW6lAACQADSHaJeMQEEgAAUry/RpQQQAAKQ7hD1igkgAASgeH2JLiWAABCAdIeoV0wAASAAxetLdCkBBIAApDtEvWICCAABKF5foksJIAAEIN0h6hUTQAAIQPH6El1KAAEgAOkOUa+YAAJAAIrXl+hSAggAAUh3iHrFBBAAAlC8vkSXEkAACEC6Q9QrJoAAEIDi9SW6lAACQADSHaJeMQEEgAAUry/RpQQQAAKQ7hD1igkggJMM74HR1TMbhlX/WfFciQ6BHhGY8NKR9a8c7Ly4Rw8beCid8rzGcbUTZw2qXFs83i/+a82HuVGXrs80GejXoyN/PKJy/r1frl3Yo4d5CAKKCYxc09z02tGuUbau4KQAbvtS1V0Lzq+51xYU+kKgFATeOhT0H7nucHNHIUiVot/JejgpgItPT6/dcMlnJtqCQl8IlILAfW+2XTunKbskKEWzbno4KYBi1lUT+o+fUl++xSIbWkPAKIFZr7YsWvpOx41Gm4Qc7qwApp5VsXTl1+qutgmH3hAwReC593Ojp2/ObD7W5VWY6tGTc50VQDH8wtE1s+cNq2rsyUV4BgJaCGwNgnTDuqMv2vzu/3FWTgvgzKrU/gXnV10zc3DVOi3DJScEwghctjHz5HP7c1PDnivF7zstgCKAogRu/GLlgntGVt9XCiD0gIApAu8GQdVVL2Ve2Hwof5GpHr0913kBHL/QJWekn59ZX7nohqEVq3t7SZ6HgE0Cmz5sH7Ly312z/rSvveGjjmCgzSwn9lYjgOPBR9SVvXZmTeqdQuClfN8ruASTLBA4TiAIvFTa9zrzgddve3PnhYdzwQAX6agTgIsQyQQBrQQQgNbJkRsCERBAABFA5AgIaCWAALROjtwQiIAAAogAIkdAQCsBBKB1cuSGQAQEEEAEEDkCAloJIACtkyM3BCIggAAigMgRENBKAAFonRy5IRABAQQQAUSOgIBWAghA6+TIDYEICCCACCByBAS0EkAAWidHbghEQAABRACRIyCglQAC0Do5ckMgAgIIIAKIHAEBrQQQgNbJkRsCERBAABFA5AgIaCWAALROjtwQiIAAAogAIkdAQCsBBKB1cuSGQAQEEEAEEDkCAloJIACtkyM3BCIggAAigMgRENBKAAFonRy5IRABAQQQAUSOgIBWAghA6+TIDYEICCCACCByBAS0EkAAWidHbghEQAABRACRIyCglQAC0Do5ckMgAgIIIAKIHAEBrQQQgNbJkRsCERBAABFA5AgIaCWAAE6Y3OCa1N5pZ1U0Xllf/ceuzo6KXJmf1jpccp+aQFfeS5WlvcI7rcGQRXvab3vlYOfFSWOGAD6Z+GnlfmZGfcXDN4yp+dFY388nbRG4r+f9ZvexGQt2tf98X7ZwdlJ4IADP8wak/czcc6vuvPu86geTMnjueXICK/6Vv+iOf7Qu3tPaNSQJjBCA53mzB1c8uHh83c1JGDh3DCew+O32y7/z99bVuYKXCn9a9xOJF8DQ2rK3dk86bZjuMZI+agIzNmUWL38vd33U57p2XuIFMGtQxcNLL6i7ybXBkMcugaffy11w9ZaWFzP5oNZuErPdEy+AVRP6j59SX77FLGZO10hg1AtHtu440jlGY/aeZk60AGr6eR0bpg6s47v+PV2XZD2HAGI+7/5pvzUzdWBdzK/J9fpIYNxfmjdtae6a0MdyFWWJfgVQ189va5k2sFrFpAhZcgLDn2t+fVdL14iSNy5hQwRgQAAvH+wY/lFb6nPlKc+JHygqhsh1dlXP/ELFOt/3CyXcL9WtBq461HwoFwxQfYmQ8AjAgAC+uTGzYs0Huem+5zuzOwUv8B4aXTflhqEVq50J5XiQM546fOBAe+F0x2OK4iEAQwJ4en9uumgyBooXjq6ZPW9YVaOBo2N5JAKI5Vj/dylT3wP41t+OPv7U+/kZruFDAL2bCALoHS91TyMAdSMraWAEUFLcpW+GAErPXFNHBKBpWn3IigD6AC1BJQgg5sNGADEfsPB6CEAI0PVyBOD6hOzmQwB2+RvvjgCMI1bdAAGoHl94eAQQzijJTyCAmE8fAcR8wMLrIQAhQNfLEYDrE7KbDwHY5W+8OwIwjlh1AwSgenzh4RFAOKMkP4EAYj59BBDzAQuvhwCEAF0vRwCuT8huPgRgl7/x7gjAOGLVDRCA6vGFh0cA4YyS/AQCiPn0EUDMByy8HgIQAnS9HAG4PiG7+RCAXf7GuyMA44hVN0AAqscXHh4BhDNK8hMIIObTRwAxH7DweghACND1cgTg+oTs5kMAdvkb744AjCNW3QABqB5feHgEEM4oyU8ggJhPHwHEfMDC6yEAIUDXyxGA6xOymw8B2OVvvDsCMI5YdQMEoHp84eERQDijJD+BAGI+fQQQ8wELr4cAhABdL0cArk/Ibj4EYJe/8e4IwDhi1Q0QgOrxhYdHAOGMkvwEAoj59BFAzAcsvB4CEAJ0vRwBuD4hu/kQgF3+xrsjAOOIVTdAAKrHFx4eAYQzSvITCCDm00cAMR+w8HoIQAjQ9XIE4PqE7OZDAHb5G++OAIwjVt0AAageX3h4BBDOKMlPIICYTx8BxHzAwushACFA18sRgOsTspsPAdjlb7w7AjCOWHUDBKB6fOHhEUA4oyQ/gQBiPn0EEPMBC6+HAIQAXS9HAK5PyG4+BGCXv/HuCMA4YtUNEIDq8YWHRwDhjJL8BAKI+fQRQMwHLLweAhACdL0cAbg+Ibv5EIBd/sa7IwDjiFU3QACqxxceHgGEM0ryEwgg5tNHADEfsPB6CEAI0PVyBOD6hOzmQwB2+RvvjgCMI1bdAAGoHl94eAQQzijJTyCAmE8fAcR8wMLrIQAhQNfLEYDrE7KbL7ECeGZ/bszkjZmtdvGb744AzDPW3CGxAtjwQdvZl23KvpHt9Co0DzAsOwIII5Ts30+sAIpjb9zXPmnO9uyy5lzQP65rgADiOtlo7pVoARQRLtnX/o2GbdknjuaD2miQunUKAnBrHq6lSbwAjkvg5m3ZJzIxlAACcO1Lzq08COCTeTyyt+OKOdtal7V0BlVujUiWBgHI+MW9GgF8asKP7O64Yt7O1kfj9McBBBD3L2HZ/RDACfyKEpi7s/XRuPxxwJQAJm/MrHhmf266bP2ir144umb2vGFVjdGfHM8TEcBJ5rr47fbLf7C9dUUc3iI0JYBJGzNPrj+Qn5py5Osi8DyvK/DyD42tmXL94MpnHYnlfAwE0M2Iim8R3rotu+xIXvdbhKYE8PLBjuHZnF+TCryCK1veFngV084qf9WVPBpyIIBTTKn4SuDWpuwyzd8TMCUADctNxnACCCCEUVECc5qyj2l9JYAAwr8IkvwEAujB9ItvEd66rXVZq8K3CBFADwac4EcQQA+HX3x3YP7O1iXaXgkggB4OOKGPIYBeDL74SmDudl1vESKAXgw4gY8igF4Ovfg9gYbt2eVafmIQAfRywAl7HAH0YeCPvN1++Twl7w4ggD4MOEElCKCPwy5KYL6CdwcQQB8HnJAyBCAYtIZXAghAMOAElCIA4ZAf3nNs6pymtsdcfYsQAQgHHPNyBBDBgIsSmL+jbYmLPzGIACIYcIyPQAARDdfVTxEigIgGHNNjTl99+OBHHYWBMb3ex9dKpzyvcVztxFmDKtcW/9s3ddniB4gatmUfd+mjxMXL56/8rLE7m2LJuaUhMHDVoeZDuWBAabrZ69I4vnby8U+JGv1iKL4SuH/3sXt8zyv45lzTY5KplFfY/vUBY3tcwIOJIjB1U8tj/2zpHFnm+c58qjPKAQRe8ZeXuuu82luuqk9vMPoKIMrgUZ21NQjSY30/H9V5nAMB7QSMvgLQDof8EIg7gf8A/xkkDwXo0hcAAAAASUVORK5CYII="/>
+    </div>
+
+    <status-bar :entries="entries" :messages="messages"></status-bar>
+    <progress-overlay :progress="40" :shown="false"></progress-overlay>
+<!--    <search-results-panel :entries="entries"></search-results-panel>-->
+
+</div>
+
+<script>
+
+    function generateUID(timestamp = null) {
+        if (!timestamp) {
+            timestamp = Date.now();
+        } else {
+            let parsed = parseInt(timestamp);
+            if (isNaN(parsed)) {
+                timestamp = Date.now();
+            } else {
+                timestamp = parsed;
+            }
+        }
+        const firstPart = timestamp.toString(36);
+        let secondPart = (Math.random() * 46656) | 0;
+        let thirdPart = (Math.random() * 46656) | 0;
+        secondPart = ("000" + secondPart.toString(36)).slice(-3);
+        thirdPart = ("000" + thirdPart.toString(36)).slice(-3);
+        return firstPart + '.' + secondPart + '.' + thirdPart;
+    }
+
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+    }
+
+    function clearArray(array) {
+        while (array.length) {
+            array.pop();
+        }
+    }
+</script>
+
+
+
+<script>
+
+
+    /**
+     * @typedef {Object} Actor
+     * @property {string} name
+     * @property {string} char
+     * @property {number} idx
+     * @property {boolean} isActive
+     */
+
+    /**
+     * @typedef {Object} EntryPart
+     * @property {number} type
+     * @property {string} text
+     */
+
+    /** @typedef {Object} Entry
+     * @property {string} text
+     * @property {string} level
+     * @property {string} id
+     * @property {number} timestamp
+     * @property {boolean} isSelected
+     * @property {boolean} isHidden
+     * @property {Actor} actor
+     * @property {EntryPart[]} parts
+     */
+
+    const APP_ACTOR = 'APP_ACTOR';
+
+    Vue.prototype.$levels = ['trace', 'debug', 'info', 'warn', 'error'];
+    Vue.prototype.$parseLevel = function (level) {
+        if (!level) return 10;
+        let l = this.$levels.indexOf(level.toLowerCase());
+        if (l < 0) return 10;
+        return l;
+    };
+    Vue.prototype.bus = new Vue();
+
+    Vue.component('actor-selector', {
+        props: ['actors'],
+        template: `
+          <div id="actors">
+          <button v-for="actor in actors"
+                  :key="actor.name"
+                  v-on:click="onClick($event, actor)"
+                  v-on:mouseenter="mouseOver($event.target, actor)"
+                  v-on:mouseleave="focusAll()"
+                  v-bind:class="[{ active: actor.isActive }, 'actor' + actor.idx]">
+            {{ actor.char }} {{ actor.name }}
+          </button>
+          </div>`,
+        methods: {
+            mouseOver(e, actor) {
+                if (!actor.isActive) {
+                    return;
+                }
+                this.focusActor(actor.idx);
+            },
+            focusActor(idx) {
+                let d = document.getElementById('container');
+                for (let i = 0; i < 4; i++) {
+                    if (i === idx) continue;
+                    d.classList.add('hid' + i);
+                }
+            },
+            focusAll() {
+                let d = document.getElementById('container');
+                for (let i = 0; i < 4; i++) {
+                    d.classList.remove('hid' + i);
+                }
+            },
+
+            /**
+             * @param evt {MouseEvent}
+             * @param actor
+             */
+            onClick(evt, actor) {
+                actor.isActive = !actor.isActive;
+                this.$emit('actor-toggle');
+                if (!actor.isActive) {
+                    this.focusAll();
+                } else {
+                    setTimeout(() => this.focusActor('actor' + actor.idx), 0)
+                }
+            }
+        }
+    });
+
+    Vue.component('loglevel-selector', {
+        props: ['levels', 'level', 'messages'],
+        data: function() {
+            return { shown: false };
+        },
+        template: `<div>
+            <button id="level-btn" @click="shown = !shown">{{ levels[level] }}</button>
+            <div id="level-popup" v-bind:class="{ hidden: !shown }">
+              <button v-for="(lvl, idx) in levels" v-bind:data-idx="idx" @click="selected">{{ lvl }} ({{counts[lvl] || '-'}})</button>
+            </div>
+            <div id="overlay" ref="overlay" class="hidden"></div>
+        </div>`,
+        methods: {
+            selected(evt) {
+                this.$emit('level-changed', evt.target.getAttribute('data-idx'));
+                this.shown = false;
+            },
+            onKeyUp(evt) {
+                if (evt.key === 'Escape') {
+                    this.shown = false;
+                }
+            }
+        },
+        computed: {
+            counts() {
+                let counts = {};
+                for (let entry of this.messages) {
+                    if (!entry.level) continue;
+                    let key = entry.level.toLowerCase();
+                    counts[key] = (counts[key] || 0) + 1;
+                }
+                return counts;
+            }
+        },
+        mounted() {
+            document.addEventListener('keyup', (evt) => this.onKeyUp(evt));
+        },
+        watch: {
+            shown(val) {
+                const el = this.$refs.overlay;
+                if (val) {
+                    el.classList.remove('hidden');
+                    el.onclick = () => this.shown = false;
+                } else {
+                    el.classList.add('hidden');
+                    el.onclick = null;
+                }
+            }
+        }
+    });
+
+    Vue.component('log-container', {
+        props: ['entries', 'autoScroll', 'onScrollChanged', 'onDeleteMessages', 'focusedPart', 'bookmarks'],
+        template: `<div id="container" @dragover="$event.preventDefault()" @drop="onDrop($event)">
+          <DynamicScroller ref="scroller"
+                           :items="entries"
+                           :min-item-size="27"
+                           class="scroller"
+                           @scroll="onScroll"
+                           :style="{ height: '100%' }"
+          >
+            <template v-slot="{ item, index, active }">
+              <DynamicScrollerItem
+                  :item="item"
+                  :active="active"
+                  :data-index="index"
+                  :data-active="active"
+                  :data-id="item.id"
+                  :size-dependencies="[item.isHidden,]"
+                  :class="['entry', 'actor' + item.actor.idx, { selected: item.isSelected, hidden: item.isHidden }]"
+                >
+                <span v-bind:title="item.actor.name + ' ' + item.level" @click="onCharClick(item, $event)" @contextmenu="onCtxMenu(item, $event)">{{ item.actor.char }}</span>
+                <span v-for="(part, idx) in item.parts" :class="{ foundbit: part.type === 1, active: focusedPart && item.id === focusedPart.entry && focusedPart.idx === idx }">{{part.text}}</span>
+                <span class="hint">({{item.actor.name}})</span>
+                <img src="bookmark.svg" width="15" height="15" :class="['bookmark-button', {active: bookmarks.includes(item.id)}]" @click="bookmarkClicked(item.id)" />
+              </DynamicScrollerItem>
+            </template>
+          </DynamicScroller>
+
+          <vue-simple-context-menu
+              :elementId="'contextMenu'"
+              :options="options"
+              :ref="'vueSimpleContextMenu'"
+              @option-clicked="optionClicked"
+          >
+          </vue-simple-context-menu>
+        </div>`,
+        data: function() {
+            return {
+                lastSelectedEntry: null,
+                filteredEntries: [],
+                allActions: {
+                    del: { name: 'Delete', command: 'del' },
+                    bookmark: { name: 'Bookmark', command: 'bookmark' },
+                    removeBookmark: { name: 'Remove bookmark', command: 'remove-bookmark' },
+                    moveUp: { name: 'Move up', command: 'move-up' }
+                },
+                options: []
+            };
+        },
+        mounted() {
+            /**
+             * @type HTMLDivElement
+             */
+            const $scroller = this.$refs.scroller.$el;
+            $scroller.addEventListener('scroll', (evt) => this.onScroll(evt.target));
+            this.bus.$on('focusEntry', (id) => {
+                let itemIdx = this.entries.findIndex(e => e.id === id);
+                if (itemIdx <= 0) return;
+                if (itemIdx > 2) {
+                    itemIdx -= 2;
+                }
+                this.$refs.scroller.scrollToItem(itemIdx);
+                function flash(i) {
+                    let elements = document.querySelectorAll(`.entry[data-id='${id}']`);
+                    if (!elements.length) {
+                        if (i < 10) {
+                            setTimeout(() => flash(i+1), 50);
+                        }
+                        return;
+                    }
+                    let element = elements[elements.length - 1];
+                    element.classList.remove('flash');
+                    element.classList.add('flash');
+                    setTimeout(() => element.classList.remove('flash'), 1000);
+                }
+                setTimeout(() => flash(0), 200);
+                for (let el of document.getElementsByClassName('flash')) {
+                    el.classList.remove('flash');
+                }
+            });
+            this.bus.$on('remove-bookmark', this.removeBookmark);
+        },
+        watch: {
+            autoScroll(value) {
+                if (value) {
+                    requestAnimationFrame(() => this.$refs.scroller.scrollToBottom());
+                }
+            },
+            focusedPart(value) {
+                if (!value) return;
+                let itemIdx = this.entries.findIndex(e => e.id === value.entry);
+                if (itemIdx < 0) return;
+                if (itemIdx > 2) {
+                    itemIdx -= 2;
+                }
+                this.$refs.scroller.scrollToItem(itemIdx);
+            }
+        },
+        updated() {
+            if (this.autoScroll) {
+                requestAnimationFrame(() => this.$refs.scroller.scrollToBottom());
+            }
+        },
+        methods: {
+            onScroll(el) {
+                requestAnimationFrame(() => {
+                    let atEnd = (el.scrollHeight - el.clientHeight - el.scrollTop) < 2;
+                    this.onScrollChanged(atEnd);
+                });
+            },
+            optionClicked(p) {
+                switch (p.option.command) {
+                    case 'hide':
+                        for (let entry of this.entries) {
+                            if (entry.isSelected) {
+                                entry.isSelected = false;
+                                entry.isHidden = true;
+                            }
+                        }
+                        break;
+
+                    case 'del':
+                        this.onDeleteMessages();
+                        this.lastSelectedEntry = null;
+                        break;
+
+                    case 'bookmark':
+                        this.bookmarks.push(this.lastSelectedEntry.id);
+                        break;
+
+                    case 'remove-bookmark':
+                        this.removeBookmark(this.lastSelectedEntry.id);
+                        break;
+
+                    case 'show':
+                        for (let entry of this.entries) {
+                            entry.isHidden = false;
+                        }
+                        break;
+                }
+            },
+            bookmarkClicked(book) {
+                let idx = this.bookmarks.findIndex(b => b === book);
+                if (idx < 0) {
+                    this.bookmarks.push(book)
+                } else {
+                    this.bookmarks.splice(idx, 1);
+                }
+            },
+            removeBookmark(b) {
+                let idx = this.bookmarks.findIndex(b => b === this.lastSelectedEntry.id);
+                this.bookmarks.splice(idx, 1);
+            },
+            onCtxMenu(entry, evt) {
+                evt.preventDefault();
+                entry.isSelected = true;
+                this.options = [];
+                if (!this.bookmarks.includes(entry.id)) {
+                    this.options.push(this.allActions.bookmark);
+                } else {
+                    this.options.push(this.allActions.removeBookmark);
+                }
+                this.options.push(this.allActions.del);
+                this.lastSelectedEntry = entry;
+                this.$refs.vueSimpleContextMenu.showMenu(evt);
+            },
+            /**
+             * @param entry
+             * @param evt {MouseEvent}
+             */
+            onCharClick(entry, evt) {
+                if (evt.ctrlKey) {
+                    entry.isSelected = !entry.isSelected;
+                    this.lastSelectedEntry = entry;
+                } else if (evt.shiftKey) {
+                    let targetIdx = this.entries.findIndex(e => e === entry);
+                    let lastIdx = this.entries.findIndex(e => e === this.lastSelectedEntry);
+                    if (lastIdx < 0) {
+                        lastIdx = 0;
+                    }
+
+                    let fromIdx = Math.min(targetIdx, lastIdx);
+                    let toIdx = Math.max(targetIdx, lastIdx);
+
+                    for (let idx = 0; idx < this.entries.length; idx++) {
+                        this.entries[idx].isSelected = fromIdx <= idx && toIdx >= idx;
+                    }
+                } else {
+                    for (let e of this.entries) {
+                        if (e === entry) {
+                            e.isSelected = !e.isSelected;
+                        } else {
+                            e.isSelected = false;
+                        }
+                    }
+                    this.lastSelectedEntry = entry.isSelected ? entry : null;
+                }
+            },
+            onDrop($event) {
+                $event.preventDefault();
+                const file = $event.dataTransfer.files[0];
+                const reader = new FileReader();
+                reader.onprogress = e => this.bus.$emit('logs.download.progress', e);
+                reader.onload = (e) => {
+                    let messages = JSON.parse(e.target.result);
+                    this.bus.$emit('logs.updated', { messages });
+                };
+                reader.readAsText(file);
+            }
+        }
+    });
+
+    Vue.component('sidepanel-container', {
+        props: ['isOpen', 'filters', 'bookmarks', 'messages'],
+        template: `<div id="sidepanel-container" v-bind:style="{ left: isOpen ? 0 : '-380px' }">
+          Filter entries by
+          <div v-for="(f, idx) in filters" :style="{ opacity: f.enabled ? 1 : 0.8 }" class="filterconfig-container">
+            <input type="checkbox" :checked="f.enabled" @change="onCheck(f, $event)" />
+            <input type="text" v-model="f.pattern" />
+            <button @click="del(idx)">del</button>
+            <br/>
+            NOT <input type="checkbox" :checked="f.not" @change="onNotChange(f)"/>
+          </div>
+          <button @click="addNew">New</button>
+
+        <bookmarks-container :bookmarks="bookmarks" :messages="messages" />
+        <button @click="onDownload">Download as file</button>
+    </div>`,
+        methods: {
+            addNew() {
+                this.filters.push({ enabled: true, pattern: '', not: false });
+            },
+            del(idx) {
+                this.filters.splice(idx, 1);
+            },
+            onCheck(f) {
+                f.enabled = !f.enabled;
+            },
+            onNotChange(f) {
+                f.not = !f.not;
+            },
+            onDownload() {
+                function download(content, fileName, contentType) {
+                    var a = document.createElement("a");
+                    var file = new Blob([content], {type: contentType});
+                    a.href = URL.createObjectURL(file);
+                    a.download = fileName;
+                    a.click();
+                }
+                download(JSON.stringify(this.messages), `logs-${Date.now()}.json`, 'text/plain');
+            }
+        }
+    })
+
+    Vue.component('bookmarks-container', {
+        props: ['bookmarks', 'messages'],
+        template: `<div>
+        Bookmarks:
+            <div v-for="b in bookmarks">
+              <div :class="['bookmark-item']"  @click="onClick(b, $event)">{{ getMsg(b) }}</div>
+            </div>
+        </div>`,
+        methods: {
+            getMsg(b) {
+                let msg = this.messages.find(m => m.id === b);
+                if (!msg) {
+                    return 'not found';
+                }
+                return msg.msg || msg.text;
+            },
+            onClick(book, $event) {
+                if ($event.ctrlKey) {
+                    let idx = this.bookmarks.findIndex(b => b === book);
+                    if (idx < 0) {
+                        this.bookmarks.push(book)
+                    } else {
+                        this.bookmarks.splice(idx, 1);
+                    }
+                } else {
+                    this.bus.$emit('focusEntry', book);
+                }
+            }
+        }
+    })
+
+    let connectAttempt = 0;
+    // this instance became messy god class. Should be refactored
+    let app = new Vue({
+        el: '#app',
+        data: {
+            messages: [],
+            /** @type Entry[] */
+            entries: [],
+            hiddenIds: [],
+
+            // search
+
+            /** @type string */
+            searchQuery: '',
+            /** @type {{ entry: string, idx: number } | null} */
+            focusedSearchResult: null,
+            /** @type {[{ entry: string, idx: number }]} */
+            foundParts: [],
+
+            /** @type {{ pattern: string, typeIdx: number }[]} */
+            queryTokens: [],
+
+            bookmarks: [],
+
+            filters: [],
+            autoScroll: true,
+            level: 0,
+            actors: [],
+            lastActorIdx: -1,
+            actorCharacters: ['🟠', '🟣', '🟢', '🔵'],
+            sidepanelOpen: false
+        },
+        computed: {
+            filteredActorNames() {
+                return this.actors.filter(a => !a.isActive).map(a => a.name);
+            }
+        },
+        watch: {
+            filters:{
+                handler() {
+                    localStorage.setItem('filters', JSON.stringify(this.filters));
+                    this.updateEntries();
+                },
+                deep: true
+            },
+            searchQuery() {
+                this.updateSearch();
+            },
+            bookmarks(value) {
+                localStorage.setItem('bookmarks', JSON.stringify(value));
+            }
+        },
+        methods: {
+            // messages
+            addMsg(msg) {
+                let getTime = (m) => m.serverTime || m.timestamp;
+                let getSortKey = (m) => m.seqNumber || getTime(m);
+                if (!msg.id) {
+                    msg.id = generateUID(getTime(msg));
+                }
+                if (getTime(msg)) {
+                    let added = false;
+                    for (let i = this.messages.length - 1; i >= 0; i--) {
+                        let m = this.messages[i];
+                        if (!getTime(m)) {
+                            this.messages.splice(i + 1, 0, msg);
+                            added = true;
+                            break;
+                        }
+                        if (getSortKey(m) < getSortKey(msg)) {
+                            this.messages.splice(i + 1, 0, msg);
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (!added) {
+                        this.messages.splice(0, 0, msg);
+                    }
+                    if (this.msgOk(msg)) {
+                        added = false;
+                        let entry = this.msgMap(msg, this.messages.length - 1);
+
+                        for (let i = this.entries.length - 1; i >= 0; i--) {
+                            let e = this.entries[i];
+                            if (!getTime(e)) {
+                                this.entries.splice(i + 1, 0, entry);
+                                added = true;
+                                break;
+                            }
+                            if (getSortKey(e) < getSortKey(msg)) {
+                                this.entries.splice(i + 1, 0, entry);
+                                added = true;
+                                break;
+                            }
+                        }
+                        if (!added) {
+                            this.entries.splice(0, 0, entry);
+                        }
+                        this.searchInEntry(entry);
+                        entry.parts.forEach((p, idx) => {
+                            if (p.type === 1) {
+                                this.foundParts.push({ entry: entry.id, idx });
+                            }
+                        });
+                    }
+                }
+                else {
+                    this.messages.push(msg);
+                    if (this.msgOk(msg)) {
+                        let entry = this.msgMap(msg);
+                        this.entries.push(entry);
+                        this.searchInEntry(entry);
+                        entry.parts.forEach((p, idx) => {
+                            if (p.type === 1) {
+                                this.foundParts.push({ entry: entry.id, idx });
+                            }
+                        });
+                    }
+                }
+            },
+            addSystemMsg(text) {
+                this.addMsg({ text, user: APP_ACTOR, timestamp: Date.now(), msg: text })
+            },
+            clearMessages() {
+                this.messages = [];
+                this.entries = [];
+            },
+
+            msgOk(m) {
+                return (m.user === APP_ACTOR || !this.filteredActorNames.includes(m.user || 'unnamed'))
+                    && this.level <= this.$parseLevel(m.level)
+                    && (!this.filters.length || this.filters.every(f => !f.enabled || (!!m.text.match(f.pattern) === !f.not) ));
+            },
+            msgMap(m) {
+                let text = ''
+                if (m.timestamp && m.msg) {
+                    text = this.formatDate(m.timestamp);
+                    if (m.level) {
+                        text += ' [' + m.level + '] ';
+                    }
+                    text += ' ' + m.msg;
+                } else {
+                    text += m.text;
+                }
+
+                /** @type Entry */
+                let entry = {
+                    text,
+                    level: m.level || '',
+                    id: m.id,
+                    timestamp: m.timestamp,
+                    serverTime: m.serverTime,
+                    isSelected: false,
+                    isHidden: false,
+                    actor: this.getActor(m.user),
+                    parts: []
+                };
+                this.searchInEntry(entry);
+                return entry;
+            },
+
+            
+            getActor(user) {
+                if (user === APP_ACTOR) return { char: 'app', name: 'app', idx: '' };
+                let name = user || 'unnamed';
+                let actor = this.actors.find(a => a.name === name);
+                if (actor) {
+                    return actor;
+                }
+                let charIdx = ++this.lastActorIdx;
+                if (charIdx >= this.actorCharacters.length) {
+                    this.lastActorIdx = charIdx = 0;
+                }
+                actor = {
+                    name,
+                    char: this.actorCharacters[charIdx],
+                    idx: charIdx,
+                    isActive: true
+                };
+                this.actors.push(actor);
+                return actor;
+            },
+            onScrollChanged(v) {
+                this.autoScroll = v;
+            },
+            onDeleteMessages() {
+                let selected = this.entries.filter(e => e.isSelected).map(e => e.id);
+                this.messages = this.messages.filter(m => !selected.includes(m.id));
+                this.bookmarks = this.bookmarks.filter(b => this.messages.some(s => s.id === b));
+                this.updateEntries();
+            },
+            onLevelChanged(lvl) {
+                this.level = lvl;
+                this.updateEntries();
+            },
+            saveMessages() {
+                localStorage.setItem('logs', JSON.stringify(this.messages, null, 2));
+                this.addSystemMsg('saved');
+            },
+
+            queryChanged(query) {
+                this.searchQuery = query;
+            },
+            /** @param {Entry} e */
+            searchInEntry(e) {
+                if (!e.parts || this.searchQuery.length <= 1) {
+                    e.parts = [{ type: 0, text: e.text }];
+                    return false;
+                }
+                let found = -1;
+                if (!this.searchQuery) {
+                    e.parts = [{ type: 0, text: e.text }];
+                } else {
+                    let idx = 0;
+                    clearArray(e.parts);
+
+                    while (true) {
+                        let nextIdx = e.text.toLowerCase().indexOf(this.searchQuery.toLowerCase(), idx)
+                        if (nextIdx < 0) {
+                            e.parts.push({ type: 0, text: e.text.substring(idx) });
+                            break;
+                        }
+                        if (idx !== nextIdx) {
+                            e.parts.push({ type: 0, text: e.text.substring(idx, nextIdx)});
+                        }
+
+                        if (found === -1) {
+                            found = e.parts.length;
+                        }
+                        e.parts.push({ type: 1, text: e.text.substr(nextIdx, this.searchQuery.length)});
+                        idx = nextIdx + this.searchQuery.length;
+                    }
+                }
+                return found;
+            },
+            focusNextPart() {
+                if (!this.focusedSearchResult) return;
+                let idx = this.foundParts.indexOf(this.focusedSearchResult);
+                if (idx + 1 >= this.foundParts.length) {
+                    this.focusedSearchResult = this.foundParts[0];
+                } else {
+                    this.focusedSearchResult = this.foundParts[idx+1];
+                }
+            },
+            focusPrevPart() {
+                if (!this.focusedSearchResult) return;
+                let idx = this.foundParts.indexOf(this.focusedSearchResult);
+                if (idx < 0) {
+                    this.focusedSearchResult = this.foundParts[0];
+                } else if (idx === 0) {
+                    this.focusedSearchResult = this.foundParts[this.foundParts.length - 1];
+                } else {
+                    this.focusedSearchResult = this.foundParts[idx-1];
+                }
+            },
+
+            formatDate(timestamp) {
+                const date = new Date(parseInt(timestamp));
+                const hours = String(date.getHours()).padStart(2, '0')
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+                const ms = String(date.getMilliseconds() % 1000).padEnd(3, '0');
+                return `${hours}:${minutes}:${seconds}:${ms} `;
+            },
+            updateEntries() {
+                let acc = [];
+                let getTime = (m) => m.serverTime || m.timestamp;
+                let getSortKey = (m) => m.seqNumber || getTime(m);
+                let sorted = this.messages.sort((a,b) => getSortKey(a) - getSortKey(b));
+
+                let skippedCount = 0;
+                for (let msg of sorted) {
+                    if (this.msgOk(msg)) {
+                        if (skippedCount > 0) {
+                            acc.push({
+                                text: `Skipped: ${skippedCount}`,
+                                level: '',
+                                timestamp: 0,
+                                actor: this.getActor(APP_ACTOR),
+                                id: generateUID()
+                            });
+                            skippedCount = 0;
+                        }
+                        acc.push(this.msgMap(msg));
+                    } else {
+                        skippedCount++;
+                    }
+                }
+                if (skippedCount > 0) {
+                    acc.push({
+                        text: `Skipped: ${skippedCount}`,
+                        level: '',
+                        timestamp: 0,
+                        actor: this.getActor(APP_ACTOR),
+                        id: generateUID()
+                    });
+                }
+                this.entries = acc;
+                this.messages.forEach(m => this.getActor(m.user));
+                this.updateSearch();
+            },
+            updateSearch() {
+                clearArray(this.foundParts);
+                this.entries.forEach(e => {
+                    this.searchInEntry(e);
+                    e.parts.forEach((p, idx) => {
+                        if (p.type === 1) {
+                            this.foundParts.push({ entry: e.id, idx });
+                        }
+                    });
+                });
+                this.focusedSearchResult = this.foundParts.length ? this.foundParts[0] : null;
+            },
+            openConnection() {
+                let hrefUrl = new URL(location.href);
+                let roomId = hrefUrl && hrefUrl.searchParams && hrefUrl.searchParams.get('room') || '';
+                if (!roomId) {
+                    this.addSystemMsg("No room id specified! Please add url param 'room'!");
+                }
+
+                let url = `${(location.protocol === 'https:' ? 'wss' : 'ws')}://${location.host}/logs/listen?room=${roomId}`;
+                this.addSystemMsg(`Trying to connect to ${url}...`);
+                const socket = new WebSocket(url);
+                connectAttempt++;
+                socket.onmessage = (evt) => {
+                    const msg = JSON.parse(evt.data);
+                    console.log(msg);
+                    if (msg instanceof Array) {
+                        msg.forEach(m => this.addMsg(m))
+                    } else {
+                        this.addMsg(msg);
+                    }
+                };
+
+                socket.onclose = (evt) => {
+                    if (evt.code === 1000) {
+                        this.addSystemMsg("Connection closed. Refresh to continue.");
+                    } else {
+                        if (connectAttempt < 5) {
+                            this.addSystemMsg("Connection closed. Will try to reconnect shortly...");
+                            setTimeout(() => this.openConnection(), 5000);
+                        } else {
+                            this.addSystemMsg("Connection closed.")
+                        }
+                    }
+                }
+                socket.onopen = () =>{
+                    this.addSystemMsg("Connected!");
+                    // auto close in 5 hrs
+                    setTimeout(() => socket.close(), 1000 * 60 * 60 * 4);
+                    connectAttempt = 0;
+                }
+            }
+        },
+        mounted() {
+            // load filters
+            let fJson = localStorage.getItem('filters')
+            if (fJson) {
+                this.filters = JSON.parse(fJson);
+            }
+
+            // load saved logs
+            let lJson = localStorage.getItem('logs');
+            if (lJson) {
+                this.messages = JSON.parse(lJson).map(m => {
+                    if (!m.id) {
+                        m.id = generateUID(m.timestamp);
+                    }
+                    return m;
+                });
+                this.updateEntries();
+            }
+
+            this.openConnection();
+
+            // load bookmarks
+            let bJson = localStorage.getItem('bookmarks');
+            if (bJson) {
+                this.bookmarks = JSON.parse(bJson);
+            }
+
+            // open panel shortcut
+            document.addEventListener('keyup', evt => {
+                if (evt.key === 'b' && evt.ctrlKey) {
+                    this.sidepanelOpen = !this.sidepanelOpen;
+                }
+            })
+
+            // bus events
+            this.bus.$on('search.query-changed', ({query}) => {
+                this.queryChanged(query)
+            });
+            this.bus.$on('logs.updated', ({messages}) => {
+                console.log('updated!');
+                this.actors = [];
+                this.messages = messages;
+                this.updateEntries();
+            });
+
+        },
+        components: {
+            'search-results-panel': httpVueLoader('./components/search-results-panel.vue'),
+            'search-panel': httpVueLoader('./components/search-panel.vue'),
+            'status-bar': httpVueLoader('./components/status-bar.vue'),
+            'progress-overlay': httpVueLoader('./components/progress-overlay.vue'),
+        }
+    });
+</script>
+
+</body>
+</html>

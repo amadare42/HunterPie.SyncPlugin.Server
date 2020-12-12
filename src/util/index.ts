@@ -30,3 +30,7 @@ export function getSize(data: WebSocket.Data) {
         return data.byteLength;
     }
 }
+
+export function generateUid() {
+    return ((Math.random() * 46656) | 0).toString(36) + '.' + ((Math.random() * 46656) | 0).toString(36);
+}
