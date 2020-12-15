@@ -1,5 +1,5 @@
 {
-  "name": "cheapass-logs-dumper",
+  "name": "dumper",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,13 +10,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/mssql": "^6.0.6",
-    "@types/node": "^14.14.12",
+    "@types/node": "^14.14.13",
     "@types/ws": "^7.4.0",
     "dotenv": "^8.2.0",
-    "mssql": "^6.2.3",
+    "mysql2": "^2.2.5",
     "ts-node": "^9.1.1",
-    "typescript": "^4.1.2",
+    "typescript": "^4.1.3",
     "ws": "^7.4.1"
   }
 }
