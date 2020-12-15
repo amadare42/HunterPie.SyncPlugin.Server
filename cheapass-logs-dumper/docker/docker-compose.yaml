@@ -1,0 +1,32 @@
+version: '3.4'
+
+services:
+  logs-db:
+    build: mysql/
+    container_name: logs-db
+    ports: 
+      - "3306:3306"
+    expose: 
+      - "3306"
+    environment:      
+      MYSQL_DATABASE: mh_logs
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_ROOT_HOST: "%"
+      TZ: "${TZ}"
+    volumes:
+      - mysql:/var/lib/mysql
+  
+  logs-dumper:
+    build: 
+      context: logs-dumper/
+      args:
+        REPO: "${SERVER_REPO}"
+    container_name: logs-dumper
+    environment: 
+      SQL_CONNECTION_STRING: "${SQL_CONNECTION_STRING}"
+      WS_ENDPOINT: "${WS_ENDPOINT}"
+    depends_on: 
+      - logs-db
+
+volumes:
+  mysql:
