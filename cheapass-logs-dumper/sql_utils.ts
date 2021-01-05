@@ -61,8 +61,8 @@ function toInsert(obj, columns) {
 
 function toIsoDate(timestamp) {
     return {
-        val: (parseInt(timestamp) / 1000).toFixed(3),
-        template: 'from_unixtime(?)'
+        val: timestamp ? (parseInt(timestamp) / 1000).toFixed(3) : null,
+        template: timestamp ? 'from_unixtime(?)' : null
     }
 }
 

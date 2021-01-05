@@ -23,7 +23,7 @@ async function connect() {
 
     ws.on("close", () => {
         console.log("connection closed");
-        connect();
+        setImmediate(connect);
     });
     ws.on("message", msg => {
         onMsg(JSON.parse(msg as string))

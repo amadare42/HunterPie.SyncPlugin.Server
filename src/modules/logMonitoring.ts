@@ -36,6 +36,7 @@ export function registerLogger(app: express.Application, server: http.Server, pr
     subscribeToLogs(msg => {
         addLog({
             ...msg,
+            serverTime: msg.timestamp,
             user: 'server'
         });
     });
