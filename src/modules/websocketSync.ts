@@ -2,7 +2,7 @@ import * as express from 'express';
 import * as http from 'http';
 import * as WebSocket from 'ws';
 import { Msg } from '../messageModel';
-import { allSockets, sessionToSockets } from '../state';
+import { allSockets, sessionToSockets, SocketInfo } from '../state';
 import { formatBytes, generateUid, getSize, readEnvVar } from '../util';
 import { registerWs } from '../util/registerWs';
 import { logger } from '../util/logging';
@@ -66,8 +66,9 @@ function removeSocketFromSession(sessionId: string, socket: WebSocket) {
     }
 }
 
+const formatSocketInfo = (info: SocketInfo) => info ? `[${info.name}, ${info.isLeader ? 'L' : 'P'}, ${info.sessionId}]` : '<null>';
 function notifyOnSessionUpdate(clients: WebSocket[]) {
-    logger.debug(`notifyOnSessionUpdate ids: ${clients.map(c => allSockets.get(c)?.sessionId)}`);
+    logger.debug(`notifyOnSessionUpdate ${clients.length} clients`);
 
     let leaderConnected = clients.some(s => {
         var info = allSockets.get(s);
@@ -88,7 +89,8 @@ function addSocketToSession(sessionId: string, socket: WebSocket) {
     if (!arr) {
         arr = [socket];
         sessionToSockets.set(sessionId, arr);
-    } else {
+    }
+    else if (!arr.includes(socket)) {
         arr.push(socket);
     }
     notifyOnSessionUpdate(arr);
@@ -98,7 +100,7 @@ function send(ws: WebSocket, data: string) {
     ws.send(data);
     let info = allSockets.get(ws);
     if (logger.isDebugEnabled()) {
-        logger.debug(`sent [${info.name} ${info.sessionId} ${info.isLeader ? 'L' : 'P'}]`, data);
+        logger.debug(`sent [${formatSocketInfo(info)}]`, data);
     }
 }
 
@@ -148,21 +150,27 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
             logger.info(data);
 
             let info = allSockets.get(currentSocket);
+
+            // empty session id
             if (!msg.sessionId) {
                 send(currentSocket, createMsg({
                     type: 'servermsg',
                     level: 'warn',
                     text: 'Session id cannot be empty!'
                 }));
+
+                logger.info(`removing socket from session ${info.sessionId} - empty session id`)
+                removeSocketFromSession(info.sessionId, currentSocket);
                 return;
             }
 
+            // session changed
             if (info.sessionId != msg.sessionId) {
-                logger.info(`removed from previos session (${info.sessionId} != ${msg.sessionId})`)
-                // remove from existing session
+                logger.info(`removed from previous session (${info.sessionId} != ${msg.sessionId})`)
                 removeSocketFromSession(info.sessionId, currentSocket);
             }
 
+            // add socket to session
             info.sessionId = msg.sessionId;
             info.isLeader = msg.isLeader;
             addSocketToSession(msg.sessionId, currentSocket);
@@ -174,6 +182,7 @@ async function onMsg(this: WebSocket, data: WebSocket.Data) {
             if (info.sessionId) {
                 removeSocketFromSession(info.sessionId, currentSocket);
             }
+            currentSocket.close();
             break;
         }
 
