@@ -73,3 +73,36 @@ It will also display logs that are sent to `/logs/add` endpoint. Expected format
 Array of objects of this type is also supported.
 
 These logs will be sent to `/logs/listen?roomId=<roomId>` endpoint. They are not stored anywhere. So for further analysis it will be useful to dump them into DB. `cheapass-logs-dumper` will do exactly that: connects to specified server and listen for all received logs to DB.
+
+## Hosting with Docker
+If you want to host this yourself, simply use the docker-compose supplied in the project root.
+Please note that you may need to configure your webserver to pass the websocket. Here is a simple example for Nginx:
+
+```nginx
+server_tokens off;
+
+server {
+    listen 80;
+    server_name hunterpie-sync.domain.com;
+
+    access_log /var/log/nginx/hunterpie-sync.domain.com.log;
+    error_log  /var/log/nginx/hunterpie-sync.domain.com.log error;
+
+    sendfile off;
+    add_header X-Robots-Tag none;
+
+    location / {
+                    proxy_pass http://127.0.0.1:5001;
+    }
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+
+upstream hunterpie-sync {
+    # enable sticky session based on IP
+    ip_hash;
+
+    server localhost:5001;
+  }
+```
