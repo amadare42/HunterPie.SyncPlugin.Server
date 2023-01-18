@@ -1,0 +1,14 @@
+version: '3.7'
+
+services:
+  ts-node-docker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: base
+    container_name: hunterpie-sync
+    expose:
+      - '5001'
+    ports:
+      - '5001:5001'
+    command: npm run start
